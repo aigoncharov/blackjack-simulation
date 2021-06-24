@@ -1,6 +1,7 @@
 import random
+import math
 
-SIMULATIONS_CNT = 10
+ITERATIONS = 1000000
 
 #  "Answer to the Ultimate Question of Life, the Universe, and Everything"
 # SHould be a decent seed, don't you think?
@@ -29,10 +30,85 @@ POOR_HAND_THRESHOLD = 4
 
 UPCARD_THRESHOLDS_LIST = [
     {
+        'good': 16,
+        'fair': 11,
+        'poor': 10
+    },
+    {
+        'good': 17,
+        'fair': 11,
+        'poor': 10
+    },
+    {
+        'good': 18,
+        'fair': 11,
+        'poor': 10
+    },
+    {
+        'good': 19,
+        'fair': 11,
+        'poor': 10
+    },
+    {
+        'good': 16,
+        'fair': 12,
+        'poor': 11
+    },
+    {
+        'good': 17,
+        'fair': 12,
+        'poor': 11
+    },
+    {
+        'good': 18,
+        'fair': 12,
+        'poor': 11
+    },
+    {
+        'good': 19,
+        'fair': 12,
+        'poor': 11
+    },
+    {
+        'good': 16,
+        'fair': 13,
+        'poor': 12
+    },
+    {
         'good': 17,
         'fair': 13,
         'poor': 12
-    }
+    },
+    {
+        'good': 18,
+        'fair': 13,
+        'poor': 12
+    },
+    {
+        'good': 19,
+        'fair': 13,
+        'poor': 12
+    },
+    {
+        'good': 16,
+        'fair': 14,
+        'poor': 13
+    },
+    {
+        'good': 17,
+        'fair': 14,
+        'poor': 13
+    },
+    {
+        'good': 18,
+        'fair': 14,
+        'poor': 13
+    },
+    {
+        'good': 19,
+        'fair': 14,
+        'poor': 13
+    },
 ]
 
 
@@ -62,7 +138,15 @@ class Hand:
         self.points.sort()
 
     def get_max_points(self):
-        return self.points[-1]
+        for points in reversed(self.points):
+            if (points > BLACKJACK):
+                continue
+            return points
+
+        return BLACKJACK + 1
+
+    def has_points(self, points_target):
+        return points_target in self.points
 
     def __getitem__(self, key):
         return self.hand[key]
@@ -136,16 +220,19 @@ class BasicStrategy:
             return self.player.bet * BLACKJACK_REWARD_MULTIPLIER
 
         house_upcard_type = self.__get_house_upcard_type()
-
         player_points_threshold = self.upcard_thresholds[house_upcard_type]
 
         while (self.player.hand.get_max_points() < player_points_threshold):
             card = self.house.hit_player()
-            self.player.hit(card)
+
+            if (self.__should_double_down()):
+                self.player.double(card)
+            else:
+                self.player.hit(card)
 
         self.house.complete_hand()
 
-        if (self.player.hand.get_max_points() is None):
+        if (self.player.hand.get_max_points() > BLACKJACK):
             if (self.house.hand.get_max_points() > BLACKJACK):
                 return 0
             return -self.player.bet
@@ -169,6 +256,9 @@ class BasicStrategy:
             return 'poor'
 
         return 'fair'
+
+    def __should_double_down(self):
+        return self.player.hand.get_max_points() == 11 or (self.player.hand.get_max_points() == 10 and self.house.hand.get_max_points() < 10) or (self.player.hand.get_max_points() == 9 and self.house.hand.get_max_points() < 6)
 
 
 class Simulation:
@@ -204,11 +294,14 @@ def main():
     print('Simulating for the list of dealer upcard thresholds: {}'.format(
         upcard_thresholds_list))
 
+    max_total = -math.inf
+    max_total_thresholds = None
+
     for upcard_thresholds in upcard_thresholds_list:
-        print('Simulating {} times for the thresholds: {}'.format(SIMULATIONS_CNT,
+        print('Simulating {} times for the thresholds: {}'.format(ITERATIONS,
                                                                   upcard_thresholds))
 
-        simulation = Simulation(SIMULATIONS_CNT, upcard_thresholds)
+        simulation = Simulation(ITERATIONS, upcard_thresholds)
 
         simulation.simulate()
 
@@ -218,7 +311,13 @@ def main():
         })
 
         print('Player\'s expected return is {}'.format(simulation.total))
-        print('Player\'s game results are {}'.format(simulation.game_results))
+
+        if simulation.total > max_total:
+            max_total = simulation.total
+            max_total_thresholds = upcard_thresholds
+
+    print('The best player\'s return ({}) is observed with the thresholds {}'.format(
+        max_total, max_total_thresholds))
 
     print('Blackjack simulation is complete!')
 
