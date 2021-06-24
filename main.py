@@ -170,9 +170,6 @@ class Player:
     def hit(self, card):
         self.hand.add_card(card)
 
-    def stand(self):
-        pass
-
     def double(self, card):
         self.hand.add_card(card)
         self.bet += self.bet
