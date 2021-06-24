@@ -1,16 +1,19 @@
 import random
 import math
+import matplotlib.pyplot as plt
+import json
 
-ITERATIONS = 1000000
+ITERATIONS = 10000
 
 #  "Answer to the Ultimate Question of Life, the Universe, and Everything"
-# SHould be a decent seed, don't you think?
+# Should be a decent seed, don't you think?
 RANDOM_SEED = 42
 
 HOUSE_DEAL_MIN_THRESHOLD = 17
 
 BLACKJACK = 21
 
+# Premium bet multiplier paid when player has a blackjack
 BLACKJACK_REWARD_MULTIPLIER = 1.5
 
 BET = 1
@@ -23,11 +26,14 @@ for suit in CARD_SUITS:
     for rank in CARD_RANKS:
         STANDARD_DECK.append({'suit': suit, 'rank': rank})
 
+# Many casinos shuffle in several decks at once. Might be useful, if we think of simulating card counting in the future.
 DECKS_CNT = 6
 
-GOOD_HAND_THRESHOLD = 7
-POOR_HAND_THRESHOLD = 4
+# Thresholds of what is considered a good/fair/poor upcard in a dealer's hand
+GOOD_UPCARD_THRESHOLD = 7
+POOR_UPCARD_THRESHOLD = 4
 
+# Thresholds defining how many points we need to have depending on the dealer's upcard type
 UPCARD_THRESHOLDS_LIST = [
     {
         'good': 16,
@@ -210,9 +216,11 @@ class BasicStrategy:
         self.upcard_thresholds = upcard_thresholds
 
     def run(self):
+        # Deal initial hands
         player_cards = self.house.deal_initial_cards()
         self.player.get_initial_cards(player_cards)
 
+        # Watch out for a blackjack
         if (self.player.hand.get_max_points() == BLACKJACK):
             if (self.house.hand.get_max_points() == BLACKJACK):
                 return 0
@@ -222,6 +230,7 @@ class BasicStrategy:
         house_upcard_type = self.__get_house_upcard_type()
         player_points_threshold = self.upcard_thresholds[house_upcard_type]
 
+        # Hit player until they met their threshold
         while (self.player.hand.get_max_points() < player_points_threshold):
             card = self.house.hit_player()
 
@@ -230,8 +239,10 @@ class BasicStrategy:
             else:
                 self.player.hit(card)
 
+        # Complete house's hand until it meets a threshold
         self.house.complete_hand()
 
+        # Define winner and return the outcome of the game
         if (self.player.hand.get_max_points() > BLACKJACK):
             if (self.house.hand.get_max_points() > BLACKJACK):
                 return 0
@@ -249,10 +260,10 @@ class BasicStrategy:
         points = get_points_for_card(self.house.hand[0])
         max_points = points[-1]
 
-        if max_points >= GOOD_HAND_THRESHOLD:
+        if max_points >= GOOD_UPCARD_THRESHOLD:
             return 'good'
 
-        if max_points >= POOR_HAND_THRESHOLD:
+        if max_points >= POOR_UPCARD_THRESHOLD:
             return 'poor'
 
         return 'fair'
@@ -265,13 +276,16 @@ class Simulation:
     def __init__(self, iterations, upcard_thresholds):
         self.iterations = iterations
         self.upcard_thresholds = upcard_thresholds
-        self.game_results = []
+        self.running_total = []
         self.total = 0
 
     def simulate(self):
         for i in range(self.iterations):
             game_result = self.__simulate_one_game(i)
-            self.game_results.append(game_result)
+
+            running_total = self.running_total[-1] if len(
+                self.running_total) > 0 else 0
+            self.running_total.append(running_total + game_result)
             self.total += game_result
 
     def __simulate_one_game(self, i):
@@ -307,17 +321,53 @@ def main():
 
         upcard_thresholds_results.append({
             'total': simulation.total,
-            'outcomes': simulation.game_results
+            'running_total': simulation.running_total
         })
 
-        print('Player\'s expected return is {}'.format(simulation.total))
+        print('Player\'s total expected return is {}. Average return per game is {:.2f}'.format(
+            simulation.total, simulation.total / ITERATIONS))
 
         if simulation.total > max_total:
             max_total = simulation.total
             max_total_thresholds = upcard_thresholds
 
-    print('The best player\'s return ({}) is observed with the thresholds {}'.format(
-        max_total, max_total_thresholds))
+    print('The best player\'s return ({} total, {:.2f} average per game) is observed with the thresholds {}'.format(
+        max_total, max_total / ITERATIONS, max_total_thresholds))
+
+    print('Printing results')
+
+    fig1, ax1 = plt.subplots(figsize=(16, 12))
+
+    for i, upcard_thresholds_result in enumerate(upcard_thresholds_results):
+        ax1.plot([iteration + 1 for iteration in range(ITERATIONS)],
+                 upcard_thresholds_result['running_total'], label=json.dumps(upcard_thresholds_list[i]))
+
+    ax1.set_xlabel('Iteration')
+    ax1.set_ylabel('Total return')
+    ax1.set_title("Blackjack simulated total return")
+
+    ax1.legend()
+
+    fig1.savefig('blackjack_simulated_total_return.png')
+    plt.close(fig1)
+
+    fig2, ax2 = plt.subplots(figsize=(16, 12))
+
+    for i, upcard_thresholds_result in enumerate(upcard_thresholds_results):
+        ax2.plot([iteration + 1 for iteration in range(ITERATIONS)],
+                 [item / (i + 1) for i, item in enumerate(upcard_thresholds_result['running_total'])], label=json.dumps(upcard_thresholds_list[i]))
+
+    ax2.set_xlabel('Iteration')
+    ax2.set_ylabel('Average return per game')
+    ax2.set_title("Blackjack simulated average return per game")
+
+    ax2.legend()
+
+    # Limit Y axis to increase readability
+    ax2.set_ylim([-0.5, 0.5])
+
+    fig2.savefig('blackjack_simulated_avg_return_per_game.png')
+    plt.close(fig2)
 
     print('Blackjack simulation is complete!')
 
